@@ -99,18 +99,21 @@ class AutoRig(QtWidgets.QMainWindow):
     def _get_available_templates(self):
         results = set()
 
-        for plugin_dir in os.environ.get('OMTK_PLUGINS', []).split(os.pathsep):
-            if not os.path.exists(plugin_dir):
-                continue
+        # Ensure no crash happen when OMTK_PLUGINS is not defined
+        plugins = os.environ.get('OMTK_PLUGINS', [])
+        if plugins:
+            for plugin_dir in os.environ.get('OMTK_PLUGINS', []).split(os.pathsep):
+                if not os.path.exists(plugin_dir):
+                    continue
 
-            template_dir = os.path.join(plugin_dir, 'templates')
-            if not os.path.exists(template_dir):
-                continue
+                template_dir = os.path.join(plugin_dir, 'templates')
+                if not os.path.exists(template_dir):
+                    continue
 
-            for filename in os.listdir(template_dir):
-                if filename.endswith('.ma') or filename.endswith('.mb'):
-                    path = os.path.join(template_dir, filename)
-                    results.add(path)
+                for filename in os.listdir(template_dir):
+                    if filename.endswith('.ma') or filename.endswith('.mb'):
+                        path = os.path.join(template_dir, filename)
+                        results.add(path)
 
         return results
 
