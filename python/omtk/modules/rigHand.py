@@ -152,8 +152,8 @@ class Hand(Module):
             # Force input name to prevent any ctrl duplication name when the chain only have 1 input
             sys_finger._FORCE_INPUT_NAME = True
             # Lock and hide addFk ctrl for the hand
-            # TODO - Switch to fi the fingers ?
-            sys_finger.enable_addfk_ctrl = False
+            # TODO - Set a rig global variable to be able to easilly switch on and off the add fk visibility
+            sys_finger.enable_addfk_ctrl = True
             sys_finger.build()
             if sys_metacarpal:
                 sys_finger.grp_anm.setParent(sys_metacarpal.ctrls[0])
