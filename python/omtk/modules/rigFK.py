@@ -80,8 +80,8 @@ class FK(Module):
             # Build chain ctrls
             chain_ctrls = []
             for j, jnt in enumerate(chain):
-                jnt_index = self.jnts.index(jnt)  # todo: optimize performance by created a map?
-                ctrl = self.ctrls[jnt_index]
+                # jnt_index = self.jnts.index(jnt)  # todo: optimize performance by created a map?
+                ctrl = self.ctrls[j]
                 chain_ctrls.append(ctrl)
 
                 # Resolve ctrl name.
@@ -112,13 +112,13 @@ class FK(Module):
                 chain_ctrls[0].setParent(self.grp_anm)
                 libRigging.create_hyerarchy(chain_ctrls)
 
-        # Constraint jnts to ctrls if necessary
-        if constraint is True:
-            for jnt, ctrl in zip(self.jnts, self.ctrls):
-                pymel.parentConstraint(ctrl, jnt, maintainOffset=True)
-                pymel.connectAttr(ctrl.scaleX, jnt.scaleX)
-                pymel.connectAttr(ctrl.scaleY, jnt.scaleY)
-                pymel.connectAttr(ctrl.scaleZ, jnt.scaleZ)
+            # Constraint jnts to ctrls if necessary
+            if constraint is True:
+                for jnt, ctrl in zip(chain, chain_ctrls):
+                    pymel.parentConstraint(ctrl, jnt, maintainOffset=True)
+                    pymel.connectAttr(ctrl.scaleX, jnt.scaleX)
+                    pymel.connectAttr(ctrl.scaleY, jnt.scaleY)
+                    pymel.connectAttr(ctrl.scaleZ, jnt.scaleZ)
 
 
 def register_plugin():
