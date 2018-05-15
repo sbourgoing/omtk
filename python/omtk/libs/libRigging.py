@@ -432,7 +432,10 @@ def create_chain_between_objects(obj_s, obj_e, samples, parented=True):
 
     pymel.select(clear=True)
     for iCurJnt in range(0, samples):
-        ratio = float(iCurJnt) / (samples - 1.00)
+        if samples == 1:
+            ratio = 0.5
+        else:
+            ratio = float(iCurJnt) / (samples - 1.00)
         pos = pos_s + (pos_e - pos_s) * ratio
 
         new_obj = pymel.duplicate(obj_s, parentOnly=True)[0]

@@ -129,7 +129,10 @@ class Twistbone(Module):
             ep = jnt_e.getTranslation(space='world')
             delta = ep - sp
             for i, subjnt in enumerate(self.subjnts):
-                ratio = float(i) / (num_subjnts - 1)
+                if self.num_twist != 1:
+                    ratio = float(i) / (num_subjnts - 1)
+                else:
+                    ratio = 0.5
                 tm = base_tm.copy()
                 tm.translate = delta * ratio + sp
                 subjnt.setMatrix(tm, worldSpace=True)
@@ -256,20 +259,25 @@ class Twistbone(Module):
         pymel.pointConstraint(jnt_e, nonroll_sys_end.node)
         pymel.parentConstraint(jnt_e, nonroll_sys_end.ikHandle, maintainOffset=True)
 
-        # Setup twist extraction using the two non-roll twist extractor
-        # The start ref will be connected as inverted to prevent it to twist
         mdl_reverse_rotx_start = pymel.createNode("multDoubleLinear")
         pymel.connectAttr(nonroll_sys_start.twist_extractor.rotateX, mdl_reverse_rotx_start.input1)
         mdl_reverse_rotx_start.input2.set(-1.0)
-        pymel.connectAttr(mdl_reverse_rotx_start.output, driver_refs[0].rotateX)
+        if self.num_twist != 1:
+            # Setup twist extraction using the two non-roll twist extractor
+            # The start ref will be connected as inverted to prevent it to twist
+            pymel.connectAttr(mdl_reverse_rotx_start.output, driver_refs[0].rotateX)
 
-        # The last ref will be directly be connected
-        pymel.connectAttr(nonroll_sys_end.twist_extractor.rotateX, driver_refs[-1].rotateX)
+            # The last ref will be directly be connected
+            pymel.connectAttr(nonroll_sys_end.twist_extractor.rotateX, driver_refs[-1].rotateX)
 
         # Finally, compute the twist value for the middle twists joints, also connect the ctrl rotation in the system
         # for more control
+        driver_ref_list = driver_refs[1:-1]
         twist_split_len = len(driver_refs[1:-1])
-        for i, ref in enumerate(driver_refs[1:-1]):
+        if self.num_twist == 1:
+            twist_split_len = 1
+            driver_ref_list = driver_refs
+        for i, ref in enumerate(driver_ref_list):
             blend_w_node = pymel.createNode("blendWeighted")
             pymel.connectAttr(mdl_reverse_rotx_start.output, blend_w_node.input[0])
             pymel.connectAttr(nonroll_sys_end.twist_extractor.rotateX, blend_w_node.input[1])
