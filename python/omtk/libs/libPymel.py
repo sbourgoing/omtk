@@ -250,9 +250,9 @@ def isinstance_of_shape(obj, cls=pymel.nodetypes.Shape):
         return isinstance(obj, cls)
 
 
-def create_zero_grp(obj):
+def create_zero_grp(obj, suffix='zero_grp'):
     zero_grp = pymel.createNode('transform')
-    new_name = obj.name() + '_' + 'zero_grp'
+    new_name = obj.name() + '_' + suffix
     zero_grp.rename(new_name)
 
     # Note: Removed for performance

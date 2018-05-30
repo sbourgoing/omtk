@@ -363,7 +363,7 @@ def create_shape_box_feet(refs, geometries, refs_raycast=None, parent_tm=None, *
     return node
 
 
-def create_square(size=1.0, width=None, height=None, **kwargs):
+def create_square(size=1.0, width=None, height=None, rotate=[0, 0, 0], **kwargs):
     if width is None:
         width = 1.0
     if height is None:
@@ -380,6 +380,8 @@ def create_square(size=1.0, width=None, height=None, **kwargs):
     node = pymel.curve(d=1, p=[pos1, pos2, pos3, pos4, pos5])
 
     # Expose the rotateOrder
+    node.rotate.set(rotate)
+    pymel.makeIdentity(node, a=True, s=True, r=True)
     node.rotateOrder.setKeyable(True)
 
     return node
@@ -1664,6 +1666,27 @@ def sphere_volume(scale=(1, 1, 1), **kwargs):
                           (-0.4351649054107227, -0.8703298108214437, -0.2512426938664143),
                           (-0.48536336669616276, -0.8703298108214437, -0.1300528936395004),
                           (-0.5024851539225423, -0.8703298108214437, -2.1699868072960774e-07)])
+
+    node.rotateOrder.setKeyable(True)
+    node.scale.set(scale)
+    pymel.makeIdentity(node, a=True, s=True)
+    return node
+
+
+def circle_wave(scale=(1, 1, 1), **kwargs):
+    node = pymel.curve(d=3,
+                       k=[-2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+                       p=[(0.92286912963742507, -0.26366369781235754, -0.926702288481007),
+                          (8.0988190717019113e-006, 0.30186071538402376, -1.3105549446607216),
+                          (-0.92285293199928309, -0.26366369781237348, -0.92670228848077996),
+                          (-1.3051144871498601, 0.30186071538401138, 2.1565953282424609e-011),
+                          (-0.92285293199928353, -0.26366369781237348, 0.92670228852381775),
+                          (8.098819071335202e-006, 0.30186071538402376, 1.3105549447035461),
+                          (0.92286912963742396, -0.26366369781235754, 0.92670228852359304),
+                          (1.3051306847880015, 0.30186071538403514, 2.1247376748749439e-011),
+                          (0.92286912963742507, -0.26366369781235754, -0.926702288481007),
+                          (8.0988190717019113e-006, 0.30186071538402376, -1.3105549446607216),
+                          (-0.92285293199928309, -0.26366369781237348, -0.92670228848077996)])
 
     node.rotateOrder.setKeyable(True)
     node.scale.set(scale)

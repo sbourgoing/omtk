@@ -122,6 +122,9 @@ class Rig(object):
     # However some riggers might prefer otherwise for personal or backward-compatibility reasons (omtk_cradle)
     DEFAULT_UPP_AXIS = constants.Axis.z
 
+    # Define in which axis the rig will face. As an example, recommanded facing axis for rig in Unreal is the X
+    DEFAULT_RIG_FACING_AXIS = constants.Axis.x
+
     # Define how to resolve the transform for IKCtrl on Arm and Leg.
     # Before 0.4, the ctrl was using the same transform than it's offset.
     # However animators don't like that since it mean that the 'Y' axis is not related to the world 'Y'.
@@ -566,7 +569,7 @@ class Rig(object):
 
         # Create the master grp
         if create_master_grp:
-            self.grp_master = self.build_grp(RigGrp, self.grp_master, self.name + '_' + self.nomenclature.type_rig)
+            self.grp_master = self.build_grp(RigGrp, self.grp_master, self.name + '_' + self.nomenclature.type_rig_grp)
 
         # Create grp_anm
         if create_grp_anm:
@@ -768,9 +771,13 @@ class Rig(object):
                     [module for module in self.grp_jnt.getChildren() if isinstance(module, pymel.nodetypes.Constraint)])
                 libAttr.unlock_trs(self.grp_jnt)
                 pymel.parentConstraint(self.grp_anm, self.grp_jnt, maintainOffset=True)
-                pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleX, force=True)
-                pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleY, force=True)
-                pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleZ, force=True)
+                if self.grp_anm.hasAttr('globalScale'):
+                    pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleX, force=True)
+                    pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleY, force=True)
+                    pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleZ, force=True)
+
+        # Call the post build
+        self.post_build()
 
         # Store the version of omtk used to build the rig.
         self.version = api.get_version()
@@ -778,6 +785,14 @@ class Rig(object):
         self.debug("[classRigRoot.Build] took {0} ms".format(time.time() - sTime))
 
         return True
+
+    def post_build(self):
+        """
+        Call at the end of the rigging process. Nothing is done in the basic rig class, but certain
+        rig definition could need it. Need to be call really at the end to ensure this is the latest
+        things applied on the rig
+        """
+        pass
 
     def post_build_module(self, module):
         # Raise warnings if a module leave junk in the scene.
@@ -809,7 +824,7 @@ class Rig(object):
             module.grp_rig.setParent(self.grp_rig)
 
         # Connect globalScale attribute to each modules globalScale.
-        if module.globalScale:
+        if module.globalScale and self.grp_anm.globalScale:
             pymel.connectAttr(self.grp_anm.globalScale, module.globalScale, force=True)
 
         # Apply ctrl color if needed

@@ -513,6 +513,9 @@ class Module(object):
                     if inn.segmentScaleCompensate.get():
                         self.info("Disabling segmentScaleCompensate on {0}".format(inn))
                         inn.segmentScaleCompensate.set(False)
+                    if not inn.getMatrix(worldSpace=True).scale.isEquivalent(pymel.dt.Vector([1.0, 1.0, 1.0]).get()):
+                        self.warning("Scale on input {0} doesn't have it's identity scale. Some module could not "
+                                     "build correctly because of that, be careful".format(inn))
 
         if create_grp_anm:
             grp_anm_name = grp_anm_name or self.get_nomenclature_anm_grp().resolve()
@@ -663,12 +666,14 @@ class Module(object):
     # Initialization helper methods
     #
 
-    def init_ctrl(self, cls, inst):
+    def init_ctrl(self, cls, inst, *args, **kwargs):
         """
         Factory method that initialize a class instance only if necessary.
         If the instance already had been initialized in a previous build, it's correct value will be preserved,
         :param cls: The desired class.
         :param inst: The current value. This should always exist since defined in the module constructor.
+        :param args: Additional argument to give to cls
+        :param kwargs: Additional keyword argument to give to cls
         :return: The initialized instance. If the instance was already fine, it is returned as is.
         """
         # todo: validate cls
@@ -682,7 +687,7 @@ class Module(object):
                 ))
                 old_shapes = inst.shapes if hasattr(inst, 'shapes') else None
 
-            result = cls()
+            result = cls(*args, **kwargs)
 
             if old_shapes:
                 result.shapes = old_shapes

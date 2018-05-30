@@ -66,7 +66,19 @@ class FK(Module):
             pass
         super(FK, self).__callbackNetworkPostBuild__()
 
-    def build(self, constraint=True, parent=True, create_grp_anm=True, create_grp_rig=False, *args, **kwargs):
+    def build(self, constraint=True, parent=True, create_grp_anm=True, create_grp_rig=False, orient_ctrl=True,
+              *args, **kwargs):
+        """
+        Build fk ctrl over all the joints found in the module chain
+
+        :param constraint: Constraint the joint on the ctrl
+        :param parent: Parent module
+        :param create_grp_anm: Create the anm grp
+        :param create_grp_rig: Create the rig grp
+        :param orient_ctrl: Orient the ctrl on the joints. If false, ctrl will be world oriented
+        :param args: Additional args
+        :param kwargs: Additional keywords args
+        """
         super(FK, self).build(create_grp_rig=create_grp_rig, *args, **kwargs)
         nomenclature_anm = self.get_nomenclature_anm()
         nomenclature_rig = self.get_nomenclature_rig()
@@ -98,7 +110,10 @@ class FK(Module):
                     ctrl_name = nomenclature.resolve()
 
                 ctrl.build(name=ctrl_name, refs=jnt, geometries=self.rig.get_meshes())
-                ctrl.setMatrix(jnt.getMatrix(worldSpace=True))
+                if orient_ctrl:
+                    ctrl.setMatrix(jnt.getMatrix(worldSpace=True))
+                else:
+                    ctrl.setTranslation(jnt.getMatrix(worldSpace=True).translate, worldSpace=True)
 
                 # Build space-switch for first chain ctrl
                 if j == 0:

@@ -103,20 +103,28 @@ class LegIk(rigIK.IK):
         pos_e = jnts[-1].getTranslation(space='world')
 
         # We take in account that the foot is always flat on the floor.
-        axis_y = pymel.datatypes.Vector(0, 1, 0)
-        axis_z = pos_e - pos_s
-        axis_z.y = 0
-        axis_z.normalize()
-        axis_x = axis_y.cross(axis_z)
-        axis_x.normalize()
+        axis_up = pymel.datatypes.Vector(0, 1, 0)
+        axis_front = pos_e - pos_s
+        axis_front.y = 0
+        axis_front.normalize()
+        axis_side = axis_up.cross(axis_front)
+        axis_side.normalize()
 
         pos = pymel.datatypes.Point(self.chain_jnt[self.iCtrlIndex].getTranslation(space='world'))
-        tm = pymel.datatypes.Matrix(
-            axis_x.x, axis_x.y, axis_x.z, 0,
-            axis_y.x, axis_y.y, axis_y.z, 0,
-            axis_z.x, axis_z.y, axis_z.z, 0,
-            pos.x, pos.y, pos.z, 1
-        )
+        if not self.rig.DEFAULT_RIG_FACING_AXIS == constants.Axis.x:
+            tm = pymel.datatypes.Matrix(
+                axis_side.x, axis_side.y, axis_side.z, 0,
+                axis_up.x, axis_up.y, axis_up.z, 0,
+                axis_front.x, axis_front.y, axis_front.z, 0,
+                pos.x, pos.y, pos.z, 1
+            )
+        else:
+            tm = pymel.datatypes.Matrix(
+                axis_front.x, axis_front.y, axis_front.z, 0,
+                axis_up.x, axis_up.y, axis_up.z, 0,
+                axis_side.x, axis_side.y, axis_side.z, 0,
+                pos.x, pos.y, pos.z, 1
+            )
         return tm
 
     def _get_recommended_pivot_heelfloor(self, pos_foot):
@@ -134,18 +142,27 @@ class LegIk(rigIK.IK):
         If the ray-cast fail, use the last joint position.
         return: The recommended position as a world pymel.datatypes.Vector
         """
-        dir = pymel.datatypes.Point(0, 0, 1) * tm_ref_dir
+        if self.rig.DEFAULT_RIG_FACING_AXIS != constants.Axis.x:
+            dir = pymel.datatypes.Point(0, 0, 1) * tm_ref_dir
+        else:
+            dir = pymel.datatypes.Point(1, 0, 0) * tm_ref_dir
         pos = libRigging.ray_cast_farthest(pos_toes, dir, geometries)
         if not pos:
             cmds.warning("Can't automatically solve FootRoll front pivot, using last joint as reference.")
             pos = pos_tip
         else:
             # Compare our result with the last joint position and take the longuest.
-            pos.z = max(pos.z, pos_tip.z)
+            if self.rig.DEFAULT_RIG_FACING_AXIS != constants.Axis.x:
+                pos.z = max(pos.z, pos_tip.z)
+            else:
+                pos.x = max(pos.x, pos_tip.x)
 
         # Ensure we are aligned with the reference matrix.
         pos_relative = pos * tm_ref.inverse()
-        pos_relative.x = 0
+        if self.rig.DEFAULT_RIG_FACING_AXIS != constants.Axis.x:
+            pos_relative.x = 0
+        else:
+            pos_relative.z = 0
         pos_relative.y = 0
         pos = pos_relative * tm_ref
         pos.y = 0
@@ -159,7 +176,10 @@ class LegIk(rigIK.IK):
         If the ray-cast fail, use the toes position.
         return: The recommended position as a world pymel.datatypes.Vector
         """
-        dir = pymel.datatypes.Point(0, 0, -1) * tm_ref_dir
+        if self.rig.DEFAULT_RIG_FACING_AXIS != constants.Axis.x:
+            dir = pymel.datatypes.Point(0, 0, -1) * tm_ref_dir
+        else:
+            dir = pymel.datatypes.Point(-1, 0, 0) * tm_ref_dir
         pos = libRigging.ray_cast_farthest(pos_toes, dir, geometries)
         if not pos:
             cmds.warning("Can't automatically solve FootRoll back pivot.")
@@ -167,7 +187,10 @@ class LegIk(rigIK.IK):
 
         # Ensure we are aligned with the reference matrix.
         pos_relative = pos * tm_ref.inverse()
-        pos_relative.x = 0
+        if self.rig.DEFAULT_RIG_FACING_AXIS != constants.Axis.x:
+            pos_relative.x = 0
+        else:
+            pos_relative.z = 0
         pos_relative.y = 0
         pos = pos_relative * tm_ref
         pos.y = 0
@@ -191,7 +214,10 @@ class LegIk(rigIK.IK):
             if bound.contains(pos_toes):
                 filtered_geometries.append(geometry)
 
-        dir = pymel.datatypes.Point(direction, 0, 0) * tm_ref_dir
+        if self.rig.DEFAULT_RIG_FACING_AXIS != constants.Axis.x:
+            dir = pymel.datatypes.Point(direction, 0, 0) * tm_ref_dir
+        else:
+            dir = pymel.datatypes.Point(0, 0, (direction*-1)) * tm_ref_dir
         pos = libRigging.ray_cast_nearest(pos_toes, dir, filtered_geometries)
         if not pos:
             cmds.warning("Can't automatically solve FootRoll bank inn pivot.")
@@ -377,6 +403,8 @@ class LegIk(rigIK.IK):
         libAttr.addAttr_separator(attr_holder, 'footRoll', niceName='Foot Roll')
         attr_inn_roll_auto = libAttr.addAttr(attr_holder, longName='rollAuto', k=True)
 
+        # TODO - Tweak value in case we are facing the x axis. Some min and max will be inverted
+
         # Auto-Roll Threshold
         auto_roll_threshold_default_value = self.attrAutoRollThreshold or default_autoroll_threshold
         self.attrAutoRollThreshold = libAttr.addAttr(
@@ -486,17 +514,27 @@ class LegIk(rigIK.IK):
                                                        colorIfTrueR=attr_inn_bank,
                                                        colorIfFalseR=0.0).outColorR  # Less
 
-        pymel.connectAttr(attr_roll_m, self.pivot_toes_ankle.rotateX)
-        pymel.connectAttr(attr_roll_f, self.pivot_foot_front.rotateX)
-        pymel.connectAttr(attr_roll_b, self.pivot_foot_back.rotateX)
-        pymel.connectAttr(attr_bank_inn, self.pivot_foot_inn.rotateZ)
-        pymel.connectAttr(attr_bank_out, self.pivot_foot_out.rotateZ)
+        if self.rig.DEFAULT_RIG_FACING_AXIS != constants.Axis.x:
+            pymel.connectAttr(attr_roll_m, self.pivot_toes_ankle.rotateX)
+            pymel.connectAttr(attr_roll_f, self.pivot_foot_front.rotateX)
+            pymel.connectAttr(attr_roll_b, self.pivot_foot_back.rotateX)
+            pymel.connectAttr(attr_bank_inn, self.pivot_foot_inn.rotateZ)
+            pymel.connectAttr(attr_bank_out, self.pivot_foot_out.rotateZ)
+            pymel.connectAttr(attr_inn_ankle_rotz, self.pivot_toes_heel.rotateZ)
+            pymel.connectAttr(attr_inn_toes_fk_rotx, self.pivot_foot_toes_fk.rotateX)
+        else:
+            pymel.connectAttr(attr_roll_m, self.pivot_toes_ankle.rotateZ)
+            pymel.connectAttr(attr_roll_f, self.pivot_foot_front.rotateZ)
+            pymel.connectAttr(attr_roll_b, self.pivot_foot_back.rotateZ)
+            pymel.connectAttr(attr_bank_inn, self.pivot_foot_inn.rotateX)
+            pymel.connectAttr(attr_bank_out, self.pivot_foot_out.rotateX)
+            pymel.connectAttr(attr_inn_ankle_rotz, self.pivot_toes_heel.rotateX)
+            pymel.connectAttr(attr_inn_toes_fk_rotx, self.pivot_foot_toes_fk.rotateZ)
+
         pymel.connectAttr(attr_inn_heel_roty, self.pivot_foot_heel.rotateY)
         pymel.connectAttr(attr_inn_front_roty, self.pivot_foot_front.rotateY)
         pymel.connectAttr(attr_inn_back_roty, self.pivot_foot_back.rotateY)
-        pymel.connectAttr(attr_inn_ankle_rotz, self.pivot_toes_heel.rotateZ)
         pymel.connectAttr(attr_inn_toes_roty, self.pivot_foot_ankle.rotateY)
-        pymel.connectAttr(attr_inn_toes_fk_rotx, self.pivot_foot_toes_fk.rotateX)
 
         # Create ikHandles and parent them
         # Note that we are directly parenting them so the 'Preserve Child Transform' of the translate tool still work.
@@ -541,10 +579,14 @@ class LegIk(rigIK.IK):
                                maintainOffset=True)  # TODO: Implement SpaceSwitch
         '''
 
+        raise Exception
+
+        # TODO - understand why removing this part give a better result on the position of the footroll loc
         # Handle globalScale
         pymel.connectAttr(self.grp_rig.globalScale, root_footRoll.scaleX)
         pymel.connectAttr(self.grp_rig.globalScale, root_footRoll.scaleY)
         pymel.connectAttr(self.grp_rig.globalScale, root_footRoll.scaleZ)
+
 
     def unbuild(self):
         """
