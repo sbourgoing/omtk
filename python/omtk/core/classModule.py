@@ -408,7 +408,8 @@ class Module(object):
         self.canPinTo = True  # If raised, the network can be used as a space-switch pin-point
         self.globalScale = None  # Each module is responsible for handling it scale!
 
-        # Sometimes the rigger might modify the module in a way which can prevent it from being un-built without causing issues.
+        # Sometimes the rigger might modify the module in a way which can
+        # prevent it from being un-built without causing issues.
         # Use this flag to notify omtk that the module should not be un-built under any circumstances.
         self.locked = False
 
@@ -658,9 +659,11 @@ class Module(object):
             to_return = None
             if jnt and jnt == first_joint:
                 to_return = first_joint
-            return to_return, None
+            targets = [(to_return, None)]
         else:
-            return None, None
+            targets = [(None, None)]
+
+        return targets
 
     #
     # Initialization helper methods

@@ -11,15 +11,14 @@ class CtrlIkArm(rigIK.CtrlIk):
     def __createNode__(self, *args, **kwargs):
         return libCtrlShapes.create_shape_box_arm(*args, **kwargs)
 
-
-def get_spaceswitch_targets(self, module, *args, **kwargs):
-    targets, labels, indexes = super(CtrlIkArm, self).get_spaceswitch_targets(module, *args, **kwargs)
-    jnt_head = module.get_head_jnt()
-    if jnt_head:
-        targets.append(jnt_head)
-        labels.append(None)
-        indexes.append(self.get_bestmatch_index(jnt_head))
-    return targets, labels, indexes
+    def get_spaceswitch_targets(self, module, *args, **kwargs):
+        targets, labels, indexes = super(CtrlIkArm, self).get_spaceswitch_targets(module, *args, **kwargs)
+        jnt_head = module.get_head_jnt()
+        if jnt_head:
+            targets.append(jnt_head)
+            labels.append(None)
+            indexes.append(self.get_bestmatch_index(jnt_head))
+        return targets, labels, indexes
 
 
 class ArmIk(rigIK.IK):

@@ -4,6 +4,7 @@ import inspect
 
 import pymel.core as pymel
 from classNode import Node
+from classRig import RigGrp
 from omtk import constants
 from omtk.libs import libAttr
 from omtk.libs import libPymel
@@ -567,7 +568,8 @@ class BaseCtrl(Node):
                 target_names[idx] = world_name
 
         # Add the master ctrl as a spaceswitch target
-        if libPymel.is_valid_PyNode(module.rig.grp_anm):
+        # If the grp anm is not a ctrl, do not add it
+        if libPymel.is_valid_PyNode(module.rig.grp_anm) and not isinstance(module.rig.grp_anm, RigGrp):
             if module.rig.grp_anm not in targets:
                 targets.append(module.rig.grp_anm)
                 target_names.append(root_name)
@@ -577,6 +579,17 @@ class BaseCtrl(Node):
                 idx = targets.index(module.rig.grp_anm)
                 target_names[idx] = root_name
 
+        # Check if any additional targets can be found in the current module
+        for target, target_name in module.rig.get_rig_pin_location():
+            if target:
+                if target not in targets:
+                    targets.append(target)
+                    target_names.append(target_name)
+                    indexes.append(self.get_bestmatch_index(target))
+                else:
+                    idx = targets.index(target)
+                    target_names[idx] = target_name
+
         # Resolve modules targets
         first_module = True
         while jnt:
@@ -585,15 +598,15 @@ class BaseCtrl(Node):
             # The local space is an equivalent to not having any space activated so as if it follow it's parent which
             # would be the first module found
             if m and ((add_local and not first_module) or not add_local):
-                target, target_name = m.get_pin_locations(jnt)
-                if target:
-                    if target not in targets:
-                        targets.append(target)
-                        target_names.append(target_name)
-                        indexes.append(self.get_bestmatch_index(target))
-                    else:
-                        idx = targets.index(target)
-                        target_names[idx] = target_name
+                for target, target_name in m.get_pin_locations(jnt):
+                    if target:
+                        if target not in targets:
+                            targets.append(target)
+                            target_names.append(target_name)
+                            indexes.append(self.get_bestmatch_index(target))
+                        else:
+                            idx = targets.index(target)
+                            target_names[idx] = target_name
             else:
                 first_module = False
             jnt = jnt.getParent()

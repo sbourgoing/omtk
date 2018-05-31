@@ -706,7 +706,8 @@ class Rig(object):
 
         # Sort modules by ascending hierarchical order.
         # This ensure modules are built in the proper order.
-        # This should not be necessary, however it can happen (ex: dpSpine provided space switch target only available after building it).
+        # This should not be necessary, however it can happen
+        # (ex: dpSpine provided space switch target only available after building it).
         modules = sorted(modules, key=(lambda x: libPymel.get_num_parents(x.chain_jnt.start)))
 
         # Add modules dependencies
@@ -752,6 +753,7 @@ class Rig(object):
                             cmds.namespace(setNamespace=':' + module_namespace)
                             current_namespace = module_namespace
 
+                        self.pre_build_module(module)
                         module.build(**kwargs)
                         self.post_build_module(module)
                     except Exception, e:
@@ -785,6 +787,15 @@ class Rig(object):
         self.debug("[classRigRoot.Build] took {0} ms".format(time.time() - sTime))
 
         return True
+
+    def pre_build_module(self, module):
+        """
+        Function use to update a module before it's build. Some rig could benefit that
+
+        :param module:
+        :return:
+        """
+        pass
 
     def post_build(self):
         """
@@ -901,6 +912,16 @@ class Rig(object):
     #
     # Utility methods
     #
+
+    def get_rig_pin_location(self):
+        """
+        Return the list of possible rig ctrl we want to use as space
+        switch target for any ctrl that want a space switch
+
+        :return: Return a list of tuple representing the targets (node, name)
+        """
+
+        return [(None, None)]
 
     def get_module_by_input(self, obj):
         for module in self.modules:
