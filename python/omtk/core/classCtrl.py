@@ -4,7 +4,6 @@ import inspect
 
 import pymel.core as pymel
 from classNode import Node
-from classRig import RigGrp
 from omtk import constants
 from omtk.libs import libAttr
 from omtk.libs import libPymel
@@ -569,7 +568,7 @@ class BaseCtrl(Node):
 
         # Add the master ctrl as a spaceswitch target
         # If the grp anm is not a ctrl, do not add it
-        if libPymel.is_valid_PyNode(module.rig.grp_anm) and not isinstance(module.rig.grp_anm, RigGrp):
+        if libPymel.is_valid_PyNode(module.rig.grp_anm) and module.rig.grp_anm.getShape() is not None:
             if module.rig.grp_anm not in targets:
                 targets.append(module.rig.grp_anm)
                 target_names.append(root_name)
