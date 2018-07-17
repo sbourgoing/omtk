@@ -19,7 +19,7 @@ class SplineIK(Module):
 
     def build(self, stretch=True, squash=False, *args, **kwargs):
         # TODO: Use self.chain_jnt
-        self._joints = [input for input in self.input if libPymel.isinstance_of_transform(input, pymel.nodetypes.Joint)]
+        self._joints = [input for input in self.chain if libPymel.isinstance_of_transform(input, pymel.nodetypes.Joint)]
         self._curves = [input for input in self.input if
                         libPymel.isinstance_of_shape(input, pymel.nodetypes.CurveShape)]
 
