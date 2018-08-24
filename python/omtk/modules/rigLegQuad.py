@@ -131,6 +131,7 @@ class LegIkQuad(rigLeg.LegIk):
             result_high = take_guess(high)
             result = take_guess(
                 mid)  # note: it is important to take the mid guess last since we don't update the attr on exit
+            #print mid
 
             if abs(1.0 - result) < epsilon:
                 self.debug(

@@ -477,3 +477,18 @@ def unassign_twist_weights(dsts, src):
             if dst in influenceObjects:
                 to_transfer.append(dst)
         transfer_weights(skin_deformer, to_transfer, src, add_missing_influences=True)
+
+
+def assign_bind_pre_matrix(skin, attr='parentInverseMatrix'):
+    """
+    Used the skinned joint order matrix information to also assign the bindPreMatrix attribute of the skin to the
+    joints attr matrix value wanted
+
+    :param skin: The skin object on which we want to do the operation
+    :param attr: The matrix attribute to connect in the bindPreMatrix attribute of the skin, could be worldInverseMatrix
+    """
+
+    jnts = skin.matrix.listConnections()
+    # TODO - ensure the order is always the good one...
+    for i, jnt in enumerate(jnts):
+        pymel.connectAttr(jnt.attr(attr), skin.bindPreMatrix[i])

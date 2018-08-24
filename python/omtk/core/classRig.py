@@ -569,7 +569,7 @@ class Rig(object):
 
         # Create the master grp
         if create_master_grp:
-            self.grp_master = self.build_grp(RigGrp, self.grp_master, self.name + '_' + self.nomenclature.type_rig_grp)
+            self.grp_master = self.build_grp(RigGrp, self.grp_master, self.name + '_' + self.nomenclature.type_anm_grp)
 
         # Create grp_anm
         if create_grp_anm:

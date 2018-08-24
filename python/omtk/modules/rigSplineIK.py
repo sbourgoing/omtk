@@ -16,17 +16,18 @@ class SplineIK(Module):
         self.iCtrlIndex = 2
         self.ikEffector = None
         self.ikHandle = None
+        self._joints = None
+        self._curves = None
 
     def build(self, stretch=True, squash=False, *args, **kwargs):
-        # TODO: Use self.chain_jnt
-        self._joints = [input for input in self.chain if libPymel.isinstance_of_transform(input, pymel.nodetypes.Joint)]
+        self._joints = self.chain_jnt
         self._curves = [input for input in self.input if
                         libPymel.isinstance_of_shape(input, pymel.nodetypes.CurveShape)]
 
         if len(self._joints) < 2:
             raise Exception("Can't build SplineIK. Expected at least two joints, got {0}".format(self._joints))
-        if len(self._curves) < 1:
-            raise Exception("Can't build SplineIK. Expected at least one nurbsCurve, got {0}".format(self._curves))
+        if len(self._curves) != 1:
+            raise Exception("Can't build SplineIK. Expected one nurbsCurve, got {0}".format(self._curves))
 
         super(SplineIK, self).build(*args, **kwargs)
 
