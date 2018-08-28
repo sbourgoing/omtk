@@ -1,10 +1,14 @@
 import pymel.core as pymel
+import logging
+
 from omtk.core.classCtrl import BaseCtrl
 from omtk.core.classModule import Module
 from omtk.libs import libPymel
 from omtk.libs import libRigging
 from omtk.libs import libSkinning
 from omtk.libs import libPython
+
+log = logging.getLogger('omtk')
 
 
 class CtrlRibbon(BaseCtrl):
@@ -186,6 +190,9 @@ class Ribbon(Module):
             else:
                 if i == 0:
                     jnt.setParent(self.ribbon_chain_grp)
+                else:
+                    # Ensure all joint have the same orientation
+                    jnt.jointOrient.set([0, 0, 0])
             if align_chain:
                 matrix = self.chain_jnt[i].getMatrix(worldSpace=True)
                 jnt.setMatrix(matrix, worldSpace=True)
@@ -206,7 +213,8 @@ class Ribbon(Module):
             libSkinning.assign_bind_pre_matrix(skin)
         try:
             libSkinning.assign_weights_from_segments(self._ribbon_shape, self._ribbon_jnts, dropoff=1.0)
-        except ZeroDivisionError, e:
+        except:
+            log.warning("Could not assign automatibly skin weights for ribbon {0}".format(ribbon_name))
             pass
 
         # Create the ctrls that will drive the joints that will drive the ribbon.

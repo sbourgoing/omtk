@@ -102,17 +102,20 @@ class LayeredRibbon(Module):
         self.ctrls = []  # List to keep all ctrls, this will need to be hashed to get the good ctrls for each ribbon
         self.ribbon_width = 1.0
 
+        self._parented_layer_ctrl_grp = None
+        self._noparented_layer_ctrl_grp = None
+
         # Init all other num ctrl to the min ctrl a ribbon can have
         for i in xrange(0, self.MAX_LAYER):
             if i >= self.num_layer:
                 self.num_ctrl_by_layer.append(2)
                 self.is_chained_ctrl_by_layer.append(False)
 
-    def attach_to_ribbon(self, ribbon_shape, ctrls, constraint_rot=True):
+    def attach_to_ribbon(self, ribbon_shape, const_node, constraint_rot=True):
         """
         Create follicle attached to desired ribbon shape
         :param ribbon_shape: The ribbon shape use to attach the ctrl on
-        :param ctrls: The ctrls to be attach to ribbon
+        :param const_node: List of nodes to be attach to ribbon
         :param constraint_rot: Are the joints will be constraint in rotation on the follicle
         :return: Nothing
         """
@@ -123,28 +126,30 @@ class LayeredRibbon(Module):
 
         new_fols = []
 
-        for i, ctrl in enumerate(ctrls):
+        for i, node in enumerate(const_node):
             # fol_u = split_value * i
             # TODO: Validate that we don't need to inverse the rotation separately.
-            jnt_pos = ctrl.getMatrix(worldSpace=True).translate
+            jnt_pos = node.getMatrix(worldSpace=True).translate
             pos, fol_u, fol_v = libRigging.get_closest_point_on_surface(ribbon_shape, jnt_pos)
             fol_name = nomenclature_rig.resolve("{1}Follicle{0:02d}".format(i, 'ribbon'))
             fol_shape = libRigging.create_follicle2(ribbon_shape, u=fol_u, v=fol_v)
             fol = fol_shape.getParent()
             fol.rename(fol_name)
             if constraint_rot:
-                pymel.parentConstraint(fol, ctrl.offset, mo=True)
+                pymel.parentConstraint(fol, node, mo=True)
             else:
-                pymel.pointConstraint(fol, ctrl.offset, mo=True)
+                pymel.pointConstraint(fol, node, mo=True)
 
             new_fols.append(fol)
 
         return new_fols
 
     def build(self, *args, **kwargs):
-        super(LayeredRibbon, self).build(create_grp_anm=True, *args, **kwargs)
+        super(LayeredRibbon, self).build(create_grp_anm=True, parent=False, *args, **kwargs)
 
         nomenclature_rig = self.get_nomenclature_rig()
+        nomenclature_anm = self.get_nomenclature_anm()
+        ctrl_suffix = self.rig.nomenclature.type_anm
 
         # If after a rebuild the number of ctrl changes (because of a layer number change or num of ctrl change),
         # delete the old ctrl, else keep them for rebuild
@@ -156,6 +161,16 @@ class LayeredRibbon(Module):
         if self.ctrls and not same_num_ctrl:
             # pymel.delete(self.ctrls)
             self.ctrls = []
+
+        # This group will be parented to the master anm ctrl
+        parented_layer_ctrl_grp_name = nomenclature_anm.resolve("nochain_layers")
+        self._parented_layer_ctrl_grp = pymel.createNode('transform', name=parented_layer_ctrl_grp_name,
+                                                         parent=self.grp_anm)
+        # This group will keep chained ribbon layer (except the first if it's the case) and will not be parented
+        # to the master anm group
+        notparented_layer_ctrl_grp_name = nomenclature_anm.resolve("chained_layers")
+        self._notparented_layer_ctrl_grp = pymel.createNode('transform', name=notparented_layer_ctrl_grp_name,
+                                                            parent=self.grp_anm)
 
         # Build all the ribbon system needed
         for i in xrange(self.num_layer):
@@ -187,7 +202,8 @@ class LayeredRibbon(Module):
                 self._layered_ribbon.append(sys_ribbon)
 
             sys_ribbon.grp_rig.setParent(self.grp_rig)
-            pymel.parentConstraint(self.grp_anm, sys_ribbon.ribbon_chain_grp)
+            pymel.parentConstraint(self._parented_layer_ctrl_grp, sys_ribbon.ribbon_chain_grp)
+            pymel.scaleConstraint(self._parented_layer_ctrl_grp, sys_ribbon.ribbon_chain_grp)
 
         # Setup ribbon shape deformer stack using blendshapes
         for i, rib in enumerate(self._layered_ribbon):
@@ -219,8 +235,14 @@ class LayeredRibbon(Module):
                 self.ctrls.extend(rib_ctrls)
 
             # Create a group to keep all the ctrls
-            layer_ctrl_grp_name = nomenclature_rig.resolve("layer{0:02d}".format(i))
-            layer_ctrl_grp = pymel.createNode('transform', name=layer_ctrl_grp_name, parent=self.grp_anm)
+            master_parent = self._parented_layer_ctrl_grp
+            if self.is_chained_ctrl_by_layer[i] and i != 0:
+                master_parent = self._notparented_layer_ctrl_grp
+
+            master_layer_ctrl_grp_name = nomenclature_anm.resolve("layer{0:02d}".format(i))
+            master_layer_ctrl_grp = pymel.createNode('transform', name=master_layer_ctrl_grp_name,
+                                                     parent=master_parent)
+
             previous_ctrl = None
             for j, ctrl in enumerate(rib_ctrls):
                 libAttr.unlock_trs(ctrl.offset)
@@ -230,26 +252,114 @@ class LayeredRibbon(Module):
                     if previous_ctrl is not None:
                         ctrl.setParent(previous_ctrl)
                     else:
-                        ctrl.setParent(layer_ctrl_grp)
+                        ctrl.setParent(master_layer_ctrl_grp)
                     previous_ctrl = ctrl
                 else:
-                    ctrl.setParent(layer_ctrl_grp)
+                    ctrl.setParent(master_layer_ctrl_grp)
 
             # Constraint the ctrls on the previous layer ribbon shape if needed
             if i != 0:
-                all_fol = self.attach_to_ribbon(previous_ribbon._ribbon_shape, rib_ctrls)
-                layer_fol_grp_name = nomenclature_rig.resolve("ctrl_fol_layer{0:02d}".format(i))
-                layer_fol_grp = pymel.createNode('transform', name=layer_fol_grp_name, parent=rib.grp_rig)
-                for fol in all_fol:
-                    fol.setParent(layer_fol_grp)
+                if not self.is_chained_ctrl_by_layer[i]:
+                    all_offset = [ctrl.offset for ctrl in rib_ctrls]
+                    all_fol = self.attach_to_ribbon(previous_ribbon._ribbon_shape, all_offset)
+                    layer_fol_grp_name = nomenclature_rig.resolve("{1}_fol_layer{0:02d}".format(i, ctrl_suffix))
+                    layer_fol_grp = pymel.createNode('transform', name=layer_fol_grp_name, parent=rib.grp_rig)
+                    for fol in all_fol:
+                        fol.setParent(layer_fol_grp)
 
-                # Now setup the ctrl/ribbon joint relation
-                for ctrl, rib_jnt in zip(rib_ctrls, rib._ribbon_jnts):
-                    # Ribbon joint will have a zero parent setup in the ribbon creation since bind pre matrix is true
-                    libAttr.connect_transform_attrs(ctrl.offset, rib_jnt.getParent(), sx=False, sy=False, sz=False)
-                    libAttr.connect_transform_attrs(ctrl, rib_jnt)
+                    # Now setup the ctrl/ribbon joint relation
+                    for ctrl, rib_jnt in zip(rib_ctrls, rib._ribbon_jnts):
+                        # Ribbon joint will have a zero parent setup in the ribbon creation since
+                        # bind pre matrix is true
+                        libAttr.connect_transform_attrs(ctrl.offset, rib_jnt.getParent(), sx=False, sy=False, sz=False)
+                        libAttr.connect_transform_attrs(ctrl, rib_jnt)
+                else:
+                    # Setup is different if the user want a chained layer
+
+                    # First, create an offset hierarchy to support
+                    layer_ctrl_offset_name = nomenclature_anm.resolve("{1}_offset_layer{0:02d}"
+                                                                      .format(i, ctrl_suffix))
+                    layer_ctrl_offset_grp = pymel.createNode('transform', name=layer_ctrl_offset_name,
+                                                                  parent=rib.grp_rig)
+                    parent_offset = None
+                    ctrl_offset_list = []
+                    for j, ctrl in enumerate(rib_ctrls):
+                        ctrl_offset_wm = ctrl.offset.getMatrix(worldSpace=True)
+                        ctrl_offset_name = nomenclature_anm.resolve("{1}_offset{2:02d}_layer{0:02d}"
+                                                                    .format(i, ctrl_suffix, j))
+                        # Create the hierarchy based on the ctrl offset
+                        if not parent_offset:
+                            ctrl_offset = pymel.createNode('transform', name=ctrl_offset_name,
+                                                           parent=layer_ctrl_offset_grp)
+                        else:
+                            ctrl_offset = pymel.createNode('transform', name=ctrl_offset_name,
+                                                           parent=parent_offset)
+
+                        ctrl_offset.setMatrix(ctrl_offset_wm, worldSpace=True)
+                        parent_offset = ctrl_offset
+                        ctrl_offset_list.append(ctrl_offset)
+
+                    # Attach the offset to the previous ribbon
+                    offset_fol_list = self.attach_to_ribbon(previous_ribbon._ribbon_shape, ctrl_offset_list)
+                    layer_fol_grp_name = nomenclature_rig.resolve("{1}_offset)fol_layer{0:02d}".format(i, ctrl_suffix))
+                    layer_fol_grp = pymel.createNode('transform', name=layer_fol_grp_name, parent=rib.grp_rig)
+                    for fol in offset_fol_list:
+                        fol.setParent(layer_fol_grp)
+
+                    # Connect the offset directly to the ctrl offset node. Also parent constraint the ribbon joint
+                    # offset to the same offset
+                    for offset, ctrl, ribbon_jnt in zip(ctrl_offset_list, rib_ctrls, rib._ribbon_jnts):
+                        libAttr.connect_transform_attrs(offset, ctrl.offset, sx=False, sy=False, sz=False)
+                        pymel.parentConstraint(offset, ribbon_jnt.getParent())
+
+                        # Create the matrice node network to connect the ribbon joint to the ctrl
+
+                        # 1. Compute the offset between ctrl and it's extra offset
+                        ctrl_offset_wm = ctrl.offset.worldMatrix
+                        ctrl_extra_offset_wm = offset.worldInverseMatrix
+
+                        util_mult_ctrl_offset = libRigging.create_utility_node(
+                            'multMatrix',
+                        )
+
+                        pymel.connectAttr(ctrl_offset_wm, util_mult_ctrl_offset.matrixIn[0])
+                        pymel.connectAttr(ctrl_extra_offset_wm, util_mult_ctrl_offset.matrixIn[1])
+
+                        # 2. Convert the previous offset in the space of the ctrl
+
+                        util_mult_ctrl_space = libRigging.create_utility_node(
+                            'multMatrix',
+                        )
+
+                        pymel.connectAttr(ctrl.matrix, util_mult_ctrl_space.matrixIn[0])
+                        pymel.connectAttr(util_mult_ctrl_offset.matrixSum, util_mult_ctrl_space.matrixIn[1])
+
+                        # 3. Decompose the constructed matrix and affect it to the ribbon joint
+
+                        attr_tm = util_mult_ctrl_space.matrixSum
+
+                        util_decompose = libRigging.create_utility_node(
+                            'decomposeMatrix',
+                            inputMatrix=attr_tm
+                        )
+                        pymel.connectAttr(util_decompose.outputTranslate, ribbon_jnt.translate)
+                        pymel.connectAttr(util_decompose.outputRotate, ribbon_jnt.rotate)
+                        # pymel.connectAttr(util_decompose.outputScale, node.scale)
+
+
+
+
 
             previous_ribbon = rib
+
+    def parent_to(self, parent):
+        """
+        Parent the system to a specific object.
+        """
+
+        # Chained layered ctrl don't need to be parented, but the no chained yes
+        pymel.parentConstraint(parent, self._parented_layer_ctrl_grp, maintainOffset=True)
+        pymel.scaleConstraint(parent, self._parented_layer_ctrl_grp, maintainOffset=True)
 
     def unbuild(self):
         super(LayeredRibbon, self).unbuild()
