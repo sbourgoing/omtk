@@ -301,7 +301,7 @@ class LayeredRibbon(Module):
 
                     # Attach the offset to the previous ribbon
                     offset_fol_list = self.attach_to_ribbon(previous_ribbon._ribbon_shape, ctrl_offset_list)
-                    layer_fol_grp_name = nomenclature_rig.resolve("{1}_offset)fol_layer{0:02d}".format(i, ctrl_suffix))
+                    layer_fol_grp_name = nomenclature_rig.resolve("{1}_offset_fol_layer{0:02d}".format(i, ctrl_suffix))
                     layer_fol_grp = pymel.createNode('transform', name=layer_fol_grp_name, parent=rib.grp_rig)
                     for fol in offset_fol_list:
                         fol.setParent(layer_fol_grp)

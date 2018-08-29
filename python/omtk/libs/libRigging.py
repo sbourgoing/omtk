@@ -6,8 +6,9 @@ import pymel.core as pymel
 from maya import OpenMaya
 from maya import cmds
 from maya import mel
+import maya.OpenMaya as om
 
-import libPython
+import libAttr
 from omtk import constants
 from omtk.libs import libPymel
 
@@ -404,18 +405,85 @@ def create_nurbs_plane_from_joints(jnts, degree=1, width=1):
     return plane
 
 
-def create_nurbsCurve_from_joints(obj_s, obj_e, samples=2, num_cvs=3):
-    pos_s = obj_s.getTranslation(worldSpace=True)
-    pos_e = obj_e.getTranslation(worldSpace=True)
-    coords = []
-    for i in range(num_cvs):
-        ratio = float(i) / (num_cvs - 1)
-        oord = (pos_s + (ratio * (pos_e - pos_s)))
-        coords.append(oord)
+def create_curve_from_nodes(node_list, samples=2, bezier=True):
+    """
+    Create curve from a list of nodes. it will use the chain order (if a chain is found) to
+    create the points in this order. Else, it will take the order of the list.
 
-    nurbsCurve = pymel.curve(d=samples, p=coords)
+    TODO: Support a variable number of cvs. Also support bezier curve and possibly more degree
+
+    :param node_list: The list of used to create the curve
+    :param samples: Curve sample, currently only work with 2 at the moment
+    :param bezier: If degree is 3, do we want a bezier curve ?
+    :return: The new create curve
+    """
+
+    if len(node_list) < 2:
+        raise Exception('Need at list two node to build the curve')
+
+    coords = []
+    for n in node_list:
+        t = n.getTranslation(worldSpace=True)
+        coords.append(t)
+
+    if samples == 3 and bezier:
+        nurbsCurve = pymel.curve(d=samples, p=coords, bezier=True)
+    else:
+        nurbsCurve = pymel.curve(d=samples, p=coords)
 
     return nurbsCurve
+
+
+def closest_point_on_curve(node, curve_obj, debug=True, tol=0.00001):
+    """
+    Get the closet point on a curve. Usefull to align object on a curve
+
+    :param node: The node on which we want to get the closest point on curve
+    :param curve_obj: The curve shape
+    :param debug: Locator will be created at nearest point for debugging
+    :param tol: Tolerance use to find the closest point
+    :return: The param, position and normal of the closest point node on the curve
+    """
+
+    # put curve into the MObject
+    tmp_list = om.MSelectionList()
+    tmp_list.add(curve_obj.name())
+    # curve_obj = om.MObject()
+    # tmp_list.getDependNode(0, curve_obj)  # puts the 0 index of tempList's depend node into curveObj
+
+    # get the dagpath of the object
+    dagpath = om.MDagPath()
+    tmp_list.getDagPath(0, dagpath)
+
+    # define the curve object as type MFnNurbsCurve
+    curve_mf = om.MFnNurbsCurve(dagpath)
+
+    # what's the input point (in world)
+    node_trans = node.getTranslation(worldSpace=True)
+    point = om.MPoint(node_trans.x, node_trans.y, node_trans.z)
+
+    # define the parameter as a double * (pointer)
+    prm = om.MScriptUtil()
+    pointer = prm.asDoublePtr()
+    om.MScriptUtil.setDouble(pointer, 0.0)
+
+    # set the object space
+    space = om.MSpace.kWorld
+
+    result = curve_mf.closestPoint(point, pointer, tol, space)
+
+    position = [result.x, result.y, result.z]
+
+    if debug:
+        # creates a locator at the position
+        loc = pymel.spaceLocator()
+        loc.setTranslation(position, worldSpace=True)
+
+    parameter = om.MScriptUtil.getDouble(pointer)
+    normal = curve_mf.normal(parameter, space)
+
+    # just return - parameter, then world space coord.
+    return [parameter, position, normal]
 
 
 def create_hyerarchy(_oObjs):
