@@ -5,6 +5,7 @@ from omtk.libs import libPython
 from omtk.libs import libRigging
 from omtk.libs import libAttr
 from omtk.libs import libPymel
+from omtk.libs import libCtrlShapes
 
 
 class CtrlMotionPath(BaseCtrl):
@@ -24,17 +25,34 @@ class CtrlMotionPath(BaseCtrl):
         return node
 
 
+class CtrlRootMotionPath(BaseCtrl):
+    def __createNode__(self, *args, **kwargs):
+        size = self._get_recommended_size(**kwargs)
+        kwargs['size'] = size
+        node = libCtrlShapes.create_square(**kwargs)
+        # node.drawOverride.overrideEnabled.set(1)
+        # node.drawOverride.overrideColor.set(25)
+        return node
+
+
 class MotionPath(Module):
     """
     Module that will use input joint to create a curve and setup a motion path on it
     """
+
+    PATH_ATTR_NAME = 'path'
+
     def __init__(self, *args, **kwargs):
         super(MotionPath, self).__init__(*args, **kwargs)
         self.ctrls = []
+        self.master_ctrl = None
 
     def build(self, *args, **kwargs):
         """
         Build fk ctrl over all the joints found in the module chain
+
+        TODO - Fix problem when rotation root
+        TODO - Setup managment of roll
 
         :param args: Additional args
         :param kwargs: Additional keywords args
@@ -52,14 +70,21 @@ class MotionPath(Module):
         for i, ctrl in enumerate(self.ctrls):
             self.ctrls[i] = self.init_ctrl(CtrlMotionPath, ctrl)
 
+        self.master_ctrl = self.init_ctrl(CtrlRootMotionPath, self.master_ctrl)
+
         # If chained, we already have our order
-        ordered_jnts = None
         if len(self.chains) == 1:
             ordered_jnts = self.chains[0][:]
         else:
             # Since we have multiple chains (probably loose joints), we will try to order them by name
             # TODO - Find a better way to manage that ?
             ordered_jnts = sorted(self.jnts, key=lambda x: str(x.stripNamespace()))
+
+        # Setup the master ctrl, since it will drive the curve
+        master_ctrl_name = nomenclature_anm.resolve('master')
+        self.master_ctrl.build(name=master_ctrl_name, refs=ordered_jnts[0], geometries=self.rig.get_meshes())
+        self.master_ctrl.setMatrix(ordered_jnts[0].getMatrix(worldSpace=True))
+        self.master_ctrl.setParent(self.grp_anm)
 
         # Create a curve from nodes with a degree of 1, turn it to bezier and smooth it
         curve = next(
@@ -68,22 +93,26 @@ class MotionPath(Module):
             curve = libRigging.create_curve_from_nodes(ordered_jnts, 1)
             pymel.nurbsCurveToBezier()
             pymel.smoothCurve('{0}.cv[*]'.format(curve.getShape().name()), rpo=True, s=10)
+            pymel.rename(curve, nomenclature_rig.resolve("curve"))
 
         curve_grp_name = nomenclature_rig_grp.resolve("curve")
         curve_grp = pymel.createNode('transform', name=curve_grp_name, parent=self.grp_rig)
         curve.setParent(curve_grp)
 
-        pymel.parentConstraint(self.grp_anm, curve_grp)
+        pymel.parentConstraint(self.master_ctrl, curve_grp, mo=True)
 
         # Create a path attribute to drive the motion path U value
-        path_value_attr = libAttr.addAttr(
-            self.grp_rig,
-            defaultValue=100.0,
-            longName='path',
-            k=True,
-            maxValue=100.0,
-            minValue=0.0
-        )
+        if not pymel.hasAttr(self.master_ctrl.node, self.PATH_ATTR_NAME):
+            path_value_attr = libAttr.addAttr(
+                self.master_ctrl,
+                defaultValue=100.0,
+                longName=self.PATH_ATTR_NAME,
+                k=True,
+                maxValue=100.0,
+                minValue=0.0
+            )
+        else:
+            path_value_attr = self.master_ctrl.path
 
         util_mult_path_percent = libRigging.create_utility_node(
             'multiplyDivide',
@@ -130,28 +159,80 @@ class MotionPath(Module):
         # With the different param information, compute the motion path U value for each nodes
         # and setup the motion path
         for (param, ref), ctrl in zip(data, self.ctrls):
-            mp = pymel.PyNode(pymel.pathAnimation(ref, c=curve))
-            pymel.disconnectAttr(mp.uValue)
-            # mp.uValue.set(param)
-
             util_mult_u_value = libRigging.create_utility_node(
                 'multiplyDivide',
                 input1X=param
             )
 
             pymel.connectAttr(util_mult_path_percent.outputX, util_mult_u_value.input2X)
-            pymel.connectAttr(util_mult_u_value.outputX, mp.uValue)
+
+            self.create_motionpath_node(curve.getShape(), ref,  u_value_attr=util_mult_u_value.outputX,
+                                        follow=True, frontAxis='x', upAxis='y')
 
             # Finally constraint the ref on the ctrl offset
             libAttr.unlock_trs(ctrl.offset)
             pymel.parentConstraint(ref, ctrl.offset, mo=True)
 
+    def create_motionpath_node(self, curve_shape, output_node, u_value_attr=None, constraint_rot=True, *args, **kwargs):
+        """
+        Manually create and connect only what is needed in the motion path node
+
+        We remove a addDoubleLinear that is connected with the node Trans Minus Rotate Pivot. From what I have seen in
+        this setup, this connection is not needed and can cause 'false cycle' since there is a warning but not visual
+        problem
+
+        :param curve_shape: The shape use for the motion path
+        :param output_node: The node that will be constraint on the motion path
+        :param u_value_attr: The attribute use to drive the u_value. If none, it will use the default behavior
+        :param constraint_rot: Is the motion path rotate data will be used to drive the rotation of the node
+        :param args: Additional arguments
+        :param kwargs: Additional keyword arguments
+
+        :return: The motion path node created
+        """
+
+        #TODO - Could support different way to deal with twists
+
+        mp = pymel.createNode('motionPath')
+        curve_shape.worldSpace[0].connect(mp.geometryPath)
+        self.grp_anm.worldMatrix.connect(mp.worldUpMatrix)
+        mp.follow.set(True)
+        mp.frontAxis.set(0)
+        mp.upAxis.set(1)
+        mp.worldUpType.set(2)
+        if u_value_attr:
+            pymel.disconnectAttr(mp.uValue)
+            pymel.connectAttr(u_value_attr, mp.uValue)
+
+        # Rotate order and rotation
+        pymel.connectAttr(mp.rotateOrder, output_node.rotateOrder)
+        if constraint_rot:
+            pymel.connectAttr(mp.rotateX, output_node.rotateX)
+            pymel.connectAttr(mp.rotateY, output_node.rotateY)
+            pymel.connectAttr(mp.rotateZ, output_node.rotateZ)
+
+        # Translation
+        pymel.connectAttr(mp.xCoordinate, output_node.translateX)
+        pymel.connectAttr(mp.yCoordinate, output_node.translateY)
+        pymel.connectAttr(mp.zCoordinate, output_node.translateZ)
+
+        return mp
+
     def unbuild(self):
         """
         Unbuild the module
         """
-        
-        super(MotionPath, self).unbuild()
+
+        # Delete the ctrls in reverse hyerarchy order. and after unbuild the master ctrl
+        ctrls = self.get_ctrls()
+        ctrls = filter(libPymel.is_valid_PyNode, ctrls)
+        ctrls = reversed(sorted(ctrls, key=libPymel.get_num_parents))
+        for ctrl in ctrls:
+            ctrl.unbuild()
+
+        self.master_ctrl.unbuild()
+
+        super(MotionPath, self).unbuild(disconnect_attr=True)
 
     def validate(self):
         """
@@ -159,8 +240,6 @@ class MotionPath(Module):
         :return: True or False depending if it pass the building validation
         """
         super(MotionPath, self).validate()
-
-        self.curve = None
 
         return True
 
