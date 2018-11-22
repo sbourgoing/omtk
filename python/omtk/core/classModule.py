@@ -514,9 +514,13 @@ class Module(object):
                     if inn.segmentScaleCompensate.get():
                         self.info("Disabling segmentScaleCompensate on {0}".format(inn))
                         inn.segmentScaleCompensate.set(False)
+                    '''
+                    TODO : Doesn't work in Maya 2016 (Fix in a later version of pymel, probably fixed in 2016.5).
+                    See if we want to fix it...
                     if not inn.getMatrix(worldSpace=True).scale.isEquivalent(pymel.dt.Vector([1.0, 1.0, 1.0]).get()):
                         self.warning("Scale on input {0} doesn't have it's identity scale. Some module could not "
                                      "build correctly because of that, be careful".format(inn))
+                    '''
 
         if create_grp_anm:
             grp_anm_name = grp_anm_name or self.get_nomenclature_anm_grp().resolve()

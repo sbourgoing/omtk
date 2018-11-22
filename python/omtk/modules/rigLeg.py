@@ -380,6 +380,23 @@ class LegIk(rigIK.IK):
 
         # Align all locator with the direction of the foot. Fix problem when foot is not aligned in the world
         if align_footroll_pivot:
+            '''
+            Ugly way to setup rotate to support maya 2016 before extension 2. Accessing the rotate attribute on a
+            transformation matrix crash
+            '''
+            tmp_container = pymel.spaceLocator()
+            tmp_container.setMatrix(tm_ref_dir, worldSpace=True)
+            rot = tmp_container.getRotation(space='world')
+            self.pivot_foot_ankle.setRotation(rot, space='world')
+            self.pivot_foot_inn.setRotation(rot, space='world')
+            self.pivot_foot_out.setRotation(rot, space='world')
+            self.pivot_foot_back.setRotation(rot, space='world')
+            self.pivot_foot_heel.setRotation(rot, space='world')
+            self.pivot_foot_front.setRotation(rot, space='world')
+            self.pivot_toes_ankle.setRotation(rot, space='world')
+            self.pivot_foot_toes_fk.setRotation(rot, space='world')
+            self.pivot_toes_heel.setRotation(rot, space='world')
+            '''
             self.pivot_foot_ankle.setRotation(tm_ref_dir.rotate, space='world')
             self.pivot_foot_inn.setRotation(tm_ref_dir.rotate, space='world')
             self.pivot_foot_out.setRotation(tm_ref_dir.rotate, space='world')
@@ -389,6 +406,7 @@ class LegIk(rigIK.IK):
             self.pivot_toes_ankle.setRotation(tm_ref_dir.rotate, space='world')
             self.pivot_foot_toes_fk.setRotation(tm_ref_dir.rotate, space='world')
             self.pivot_toes_heel.setRotation(tm_ref_dir.rotate, space='world')
+            '''
 
         chain_footroll = [
             root_footRoll,

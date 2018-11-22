@@ -114,10 +114,10 @@ class Hand(Module):
             # Resolve phalanges and metacarpal from chain
             if chain_length == 5:
                 jnts_metacarpal = [chain[0]]
-                jnts_phalanges = chain[1:-1]
+                jnts_phalanges = chain[1:]
             else:
                 jnts_metacarpal = None
-                jnts_phalanges = chain[:-1]
+                jnts_phalanges = chain[:]
 
             finger_entries.append((jnts_metacarpal, jnts_phalanges))
 
