@@ -662,12 +662,13 @@ class Rig(object):
 
         return sorted_modules
 
-    def build(self, modules=None, skip_validation=False, strict=False, **kwargs):
+    def build(self, modules=None, skip_validation=False, strict=False, constraint_root=True, **kwargs):
         """
         Build the whole rig or part of the rig.
         :param modules: The modules to build. If nothing is provided everything will be built.
         :param skip_validation: If True, no final validation will be done. Don't use it.
         :param strict: If True, an exception will immediately be raised if anything fail in the build process.
+        :param constraint_root: In a root joint is found, set if it will be constraint to the grp_anm or not
         :param kwargs: Any additional keyword arguments will be passed on each modules build method.
         :return: True if sucessfull, False otherwise.
         """
@@ -772,7 +773,8 @@ class Rig(object):
                 pymel.delete(
                     [module for module in self.grp_jnt.getChildren() if isinstance(module, pymel.nodetypes.Constraint)])
                 libAttr.unlock_trs(self.grp_jnt)
-                pymel.parentConstraint(self.grp_anm, self.grp_jnt, maintainOffset=True)
+                if constraint_root:
+                    pymel.parentConstraint(self.grp_anm, self.grp_jnt, maintainOffset=True)
                 if self.grp_anm.hasAttr('globalScale'):
                     pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleX, force=True)
                     pymel.connectAttr(self.grp_anm.globalScale, self.grp_jnt.scaleY, force=True)
