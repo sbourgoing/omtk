@@ -44,7 +44,7 @@ Default resolution order:
 
 Usage:
     >> import sys
-    >> from omtk.vendor.Qt import QtWidgets
+    >> from Qt import QtWidgets
     >> app = QtWidgets.QApplication(sys.argv)
     >> button = QtWidgets.QPushButton("Hello World")
     >> button.show()
@@ -97,7 +97,7 @@ def convert(lines):
     """
 
     def parse(line):
-        line = line.replace("from PySide2 import", "from omtk.vendor.Qt import")
+        line = line.replace("from PySide2 import", "from Qt import")
         line = line.replace("QtWidgets.QApplication.translate",
                             "Qt.QtCompat.translate")
         return line
@@ -236,7 +236,7 @@ def _pyside2():
     import PySide2
     from PySide2 import QtGui, QtWidgets, QtCore, QtUiTools
 
-    _remap(QtCore, "QStringListModel", QtGui.QStringListModel)
+    #_remap(QtCore, "QStringListModel", QtGui.QStringListModel)
 
     _add(QtCompat, "__binding__", PySide2.__name__)
     _add(QtCompat, "__binding_version__", PySide2.__version__)
